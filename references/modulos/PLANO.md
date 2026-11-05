@@ -5,7 +5,7 @@ não gera nada sem a aprovação válida, e o estado nunca chega a `auditado` ou
 
 ## 1. Gerar o plano
 
-`calculo_plano_interpretacao` (com a especificação) devolve `markdown`, `hashContrato`,
+`calculo_plano_interpretacao` (com a especificação já parametrizada) devolve `markdown`, `hashContrato`,
 `prontoParaAprovar` e `aprovacaoAtual`. O plano traz:
 1. processo, fase, trabalho, processos ligados e devedores;
 2. a matriz do título: a cadeia de decisões, a que vale e o trânsito de cada capítulo;
@@ -34,11 +34,10 @@ correções, faça-as, gere o plano de novo e peça nova aprovação.
 
 ## 3. Quando a aprovação cai
 
-O hash cobre o contrato inteiro e o cenário. Ficam de fora só a própria aprovação e as revisões de
-alerta. Qualquer mudança depois da aprovação a invalida: documento, decisão, parcela, premissa,
-pagamento ou cenário. É preciso gerar o plano de novo e obter nova aprovação. Ajustes só na
-parametrização (blocos fora do contrato) não derrubam a aprovação, mas continuam sujeitos à auditoria,
-que confere a ligação com o contrato.
+O campo `hashContrato` vincula a aprovação à especificação inteira, inclusive à parametrização e ao
+cenário. A aprovação e as revisões de alertas ficam fora do hash. Ao mudar qualquer outro dado, gere
+o plano novamente e obtenha nova aprovação. Aprovações registradas no formato anterior também
+precisam ser renovadas.
 
 ## 4. Depois de calcular
 

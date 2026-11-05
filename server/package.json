@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node ../scripts/test-mcp.mjs",
+    "test": "node ../scripts/test-mcp.mjs && npm run test:regressao",
+    "test:regressao": "node --experimental-vm-modules --test ../scripts/regressoes-calculos.test.mjs ../scripts/regressoes-instalador.test.mjs ../scripts/regressoes-integracao.test.mjs ../scripts/regressoes-validacao.test.mjs",
     "test:ponta-a-ponta": "node ../scripts/test-ponta-a-ponta.mjs todos"
   },
   "engines": {

@@ -5,22 +5,29 @@
 
 const ESCALA = 34; // casas decimais internas (sobra para produtos de índices com 25 casas)
 const FATOR = 10n ** BigInt(ESCALA);
+const MAX_ZEROS_EXPOENTE = 1024n; // limite para a expansão do expoente, bem acima dos valores do PJe-Calc
 
 /** Converte "123.4500", "0E-25", 12.5 ou null em Decimal (BigInt escalado). */
 export function D(v) {
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'bigint') return v;
   if (typeof v === 'object' && v.__dec) return v.n;
-  let s = String(v).trim();
+  const s = String(v).trim();
   if (/e/i.test(s)) {
-    const [m, e] = s.toLowerCase().split('e');
-    const exp = Number(e);
-    const neg = m.startsWith('-');
-    const [ip, fp = ''] = m.replace(/^[-+]/, '').split('.');
-    let digitos = ip + fp;
-    let pontos = fp.length - exp; // casas decimais do resultado
-    if (pontos < 0) { digitos += '0'.repeat(-pontos); pontos = 0; }
-    s = `${neg ? '-' : ''}${digitos.slice(0, digitos.length - pontos) || '0'}.${digitos.slice(digitos.length - pontos).padStart(pontos, '0')}`;
+    const m = /^([+-]?)(\d*)(?:\.(\d*))?e([+-]?\d+)$/i.exec(s);
+    if (!m || !(m[2] || m[3])) throw new SyntaxError('Decimal em notação científica inválido.');
+    const [, sinal, inteira, fracao = '', expoente] = m;
+    const digitos = (inteira + fracao).replace(/^0+/, '');
+    if (!digitos) return 0n;
+
+    // Desloca a mantissa já na escala interna e descarta somente as casas fora dela.
+    const deslocamento = BigInt(expoente) + BigInt(ESCALA - fracao.length);
+    if (deslocamento <= -BigInt(digitos.length)) return 0n;
+    if (deslocamento > MAX_ZEROS_EXPOENTE) throw new RangeError('Expoente excede o limite do decimal.');
+    const casas = Number(deslocamento);
+    const escalado = casas < 0 ? digitos.slice(0, digitos.length + casas) : digitos + '0'.repeat(casas);
+    const n = BigInt(escalado);
+    return sinal === '-' ? -n : n;
   }
   const neg = s.startsWith('-');
   const [ip, fp = ''] = s.replace(/^[-+]/, '').split('.');

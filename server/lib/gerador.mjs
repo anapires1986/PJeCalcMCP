@@ -142,18 +142,17 @@ function data(v, contexto, obrigatoria = false) {
 // competência "AAAA-MM" ou "MM/AAAA" -> {ano, mes}
 function competencia(v, contexto) {
   const s = String(v).trim();
-  let m = /^(\d{4})-(\d{2})(-\d{2})?$/.exec(s);
-  if (m) return { ano: +m[1], mes: +m[2] };
-  m = /^(\d{2})\/(\d{4})$/.exec(s);
-  if (m) return { ano: +m[2], mes: +m[1] };
-  m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
-  if (m) return { ano: +m[3], mes: +m[2] };
-  erro(`${contexto}: competência inválida "${v}" (use AAAA-MM ou MM/AAAA).`);
+  const invalida = `${contexto}: competência inválida "${v}" (use AAAA-MM ou MM/AAAA).`;
+  if (!/^(?:\d{4}-\d{2}(?:-\d{2})?|(?:\d{2}\/)?\d{2}\/\d{4})$/.test(s)) erro(invalida);
+  let ms;
+  try { ms = dataMs(s); } catch { erro(invalida); }
+  const iso = msParaData(ms);
+  return { ano: Number(iso.slice(0, 4)), mes: Number(iso.slice(5, 7)) };
 }
 
 const compChave = ({ ano, mes }) => ano * 12 + (mes - 1);
 const compDeChave = (k) => ({ ano: Math.floor(k / 12), mes: (k % 12) + 1 });
-const compData = ({ ano, mes }) => `${ano}-${String(mes).padStart(2, '0')}-01`;
+const compData = ({ ano, mes }) => `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01`;
 
 /**
  * Edições das ocorrências de FGTS ou de contribuição social: `competencia` (AAAA-MM) ou o intervalo `de`/`ate`

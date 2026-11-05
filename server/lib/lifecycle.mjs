@@ -23,7 +23,7 @@ import { baseUrl } from './rest.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JAR_INICIAR = path.resolve(__dirname, '..', '..', 'java', 'pjecalc-mcp-iniciar.jar');
-const ARQUIVO_PARADA = () => path.join(dadosDir(), 'pjecalc-mcp.parar');
+const ARQUIVO_PARADA = (pasta = home()) => path.join(pasta, '.dados', 'pjecalc-mcp.parar');
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,19 +38,37 @@ function isPortOpen(port) {
   });
 }
 
-/** Processos java do PJe-Calc (launcher oficial ou iniciador do MCP), via PowerShell. */
-async function findJavaProcs() {
+const normalizarCaminho = (p) => path.win32.normalize(p).toLowerCase();
+
+function modoDoLancador(comando, pasta) {
+  const args = (comando.match(/"[^"]*"|[^\s"]+/g) || []).map((a) => a.replace(/^"|"$/g, ''));
+  const jarInstalado = normalizarCaminho(path.join(pasta, 'bin', 'pjecalc.jar'));
+  const ehJar = (a) => a && ['bin\\pjecalc.jar', jarInstalado].includes(normalizarCaminho(a));
+  const jar = args.indexOf('-jar', 1);
+  if (jar >= 0 && ehJar(args[jar + 1])) return 'normal';
+  const cp = args.findIndex((a, i) => i > 0 && (a === '-cp' || a === '-classpath'));
+  if (cp >= 0 && args.at(-1) === 'br.jus.pjecalcmcp.IniciarSemNavegador' && args[cp + 1]?.split(';').some(ehJar)) return 'sem-navegador';
+  return null;
+}
+
+/** Processos do launcher oficial ou do MCP que usam a JRE da instalação selecionada. */
+async function findJavaProcs(pasta = home()) {
+  const jre = path.join(pasta, 'bin', 'jre', 'bin');
+  const executaveis = new Set(['java.exe', 'javaw.exe'].map((nome) => normalizarCaminho(path.join(jre, nome))));
   try {
-    const { stdout } = await new Promise((resolve, reject) => {
+    const stdout = await new Promise((resolve, reject) => {
       execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-        "Get-CimInstance Win32_Process -Filter \"Name='java.exe' OR Name='javaw.exe'\" | Where-Object { $_.CommandLine -like '*pjecalc.jar*' } | ForEach-Object { \"$($_.ProcessId)|$($_.CommandLine)\" }"],
-        { timeout: 20000, windowsHide: true }, (err, so, se) => (err ? reject(err) : resolve({ stdout: so, stderr: se })));
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process -Filter \"Name='java.exe' OR Name='javaw.exe'\" | Where-Object { $_.CommandLine -like '*pjecalc.jar*' } | Select-Object ProcessId,ExecutablePath,CommandLine)"],
+        { timeout: 20000, windowsHide: true }, (err, so) => (err ? reject(err) : resolve(so)));
     });
-    return String(stdout).split(/\r?\n/).map((s) => s.trim()).filter(Boolean).map((l) => {
-      const i = l.indexOf('|');
-      const cmd = l.slice(i + 1);
-      return { pid: Number(l.slice(0, i)), modo: /IniciarSemNavegador/.test(cmd) ? 'sem-navegador' : 'normal' };
-    }).filter((p) => Number.isFinite(p.pid));
+    const processos = JSON.parse(stdout);
+    if (!Array.isArray(processos)) return [];
+    return processos.flatMap((p) => {
+      if (!Number.isSafeInteger(p?.ProcessId) || p.ProcessId <= 0 || typeof p.ExecutablePath !== 'string'
+          || !executaveis.has(normalizarCaminho(p.ExecutablePath)) || typeof p.CommandLine !== 'string') return [];
+      const modo = modoDoLancador(p.CommandLine, pasta);
+      return modo ? [{ pid: p.ProcessId, modo }] : [];
+    });
   } catch {
     return [];
   }
@@ -156,20 +174,27 @@ async function aguardarPronto(aguardarMs, extra = {}) {
 
 /** Para o PJe-Calc (ordenadamente quando iniciado pelo MCP; senão encerra o processo). */
 export async function stop({ forcar = false, aguardarMs = 60000 } = {}) {
-  let procs = await findJavaProcs();
-  if (!procs.length) return { ...(await status()), mensagem: 'O PJe-Calc não está em execução.' };
+  const pasta = home();
+  const arquivoParada = ARQUIVO_PARADA(pasta);
+  let procs = await findJavaProcs(pasta);
+  if (!procs.length) {
+    const st = await status();
+    return { ...st, mensagem: st.aplicacaoRespondendo
+      ? 'O PJe-Calc responde, mas não foi possível identificar com segurança o processo desta instalação.'
+      : 'O PJe-Calc não está em execução.' };
+  }
   const metodo = [];
   if (!forcar && procs.some((p) => p.modo === 'sem-navegador')) {
-    fs.writeFileSync(ARQUIVO_PARADA(), new Date().toISOString());
+    fs.writeFileSync(arquivoParada, new Date().toISOString());
     metodo.push('arquivo de parada (.dados/pjecalc-mcp.parar)');
     const fim = Date.now() + aguardarMs;
     while (Date.now() < fim) {
       await esperar(1000);
-      procs = await findJavaProcs();
+      procs = await findJavaProcs(pasta);
       if (!procs.some((p) => p.modo === 'sem-navegador')) break;
     }
   }
-  procs = await findJavaProcs();
+  procs = await findJavaProcs(pasta);
   if (procs.length) {
     metodo.push('encerramento do processo java');
     await new Promise((resolve) => {
@@ -179,9 +204,14 @@ export async function stop({ forcar = false, aguardarMs = 60000 } = {}) {
     });
     await esperar(3000);
   }
-  try { fs.unlinkSync(ARQUIVO_PARADA()); } catch { /* ok */ }
+  try { fs.unlinkSync(arquivoParada); } catch { /* ok */ }
+  const selecaoMudou = home() !== pasta;
   const st = await status();
-  return { ...st, encerrado: !st.processos.length, metodo };
+  const processosAlvo = selecaoMudou ? await findJavaProcs(pasta) : st.processos;
+  return {
+    ...st, encerrado: !processosAlvo.length, metodo,
+    ...(selecaoMudou && { mensagem: `A parada se refere à instalação ${pasta}. O status exibido é da instalação selecionada na consulta final.` }),
+  };
 }
 
 /** Cauda dos logs do Tomcat/MCP. */
