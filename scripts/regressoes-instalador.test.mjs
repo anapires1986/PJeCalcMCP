@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 function preparar(t) {
-  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'pjecalc-instalador-'));
+  const raiz = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), 'pjecalc-instalador-'));
   t.after(() => fs.rmSync(raiz, { recursive: true, force: true }));
   const repo = path.join(raiz, "PJe-Calc d'Água");
   const casa = path.join(raiz, 'perfil-ficticio');
@@ -22,8 +22,11 @@ function preparar(t) {
     fs.writeFileSync(arquivo, conteudo);
   }
 
-  fs.mkdirSync(repo);
-  fs.cpSync(new URL('../instalador/', import.meta.url), path.join(repo, 'instalador'), { recursive: true });
+  const pastaInstalador = path.join(repo, 'instalador');
+  fs.mkdirSync(pastaInstalador, { recursive: true });
+  for (const arquivo of ['instalador.mjs', 'codex-config.mjs']) {
+    fs.copyFileSync(new URL(`../instalador/${arquivo}`, import.meta.url), path.join(pastaInstalador, arquivo));
+  }
   gravar(preloader, `
 require('node:os').homedir = () => process.env.PJECALC_TEST_HOME;
 require('node:module').syncBuiltinESMExports();
@@ -43,7 +46,7 @@ export const conectar = async () => ({
   gravar(path.join(repo, 'exemplos', 'calculo-referencia.json'), '{}');
 
   function rodar(modo) {
-    return execFileSync(process.execPath, ['--require', preloader, path.join(repo, 'instalador', 'instalador.mjs'), modo, '--sim'], {
+    return execFileSync(process.execPath, ['--require', preloader, path.join('instalador', 'instalador.mjs'), modo, '--sim'], {
       cwd: repo,
       env: { ...process.env, PJECALC_TEST_HOME: casa, APPDATA: appdata, LOCALAPPDATA: localappdata, INSTALADOR_SEM_CLI: '1' },
       encoding: 'utf8',
