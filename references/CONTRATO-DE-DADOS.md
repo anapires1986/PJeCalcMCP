@@ -167,7 +167,8 @@ Título (dimensão `titulo`):
 - parcela apontando decisão superada;
 - correção e juros contra precedente vinculante.
 
-Aprovação (dimensão `aprovacao`): plano não aprovado, ou contrato alterado depois da aprovação.
+A dimensão `aprovacao` fica pendente quando o plano ainda precisa de aprovação ou quando a
+especificação foi alterada depois da aprovação.
 
 Prova e vínculos:
 - verba sem origem, parcela inexistente, **INDEFERIDA** calculada, **PENDENTE** fora de cenário;

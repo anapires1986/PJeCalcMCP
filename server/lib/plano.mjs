@@ -1,9 +1,8 @@
 // pjecalc-mcp-skill · lib/plano.mjs
 // Plano de interpretação: o que o agente entendeu do processo, apresentado ao usuário ANTES do cálculo.
-// O usuário aprova (ou corrige); a aprovação fica em contrato.aprovacao com o hash do contrato aprovado
-// e cai sozinha se o contrato ou o cenário mudarem depois.
+// A aprovação em contrato.aprovacao fica vinculada à especificação completa.
 //
-//   hashContrato(spec)                  -> hash do contrato (sem aprovação nem revisões de alerta) + cenário
+//   hashContrato(spec)                  -> hash da especificação (sem aprovação nem revisões de alerta)
 //   verificarAprovacao(spec)            -> { valida, motivo, hashAtual }
 //   planoInterpretacao(spec, auditoria) -> { markdown, hashContrato, ... }
 //   revisaoPlanoResultado(spec, resultado) -> verificações "plano × resultado" depois de liquidar
@@ -21,9 +20,13 @@ function estavel(v) {
   return JSON.stringify(v);
 }
 export function hashContrato(spec) {
-  const c = { ...((spec && spec.contrato) || {}) };
-  delete c.aprovacao; delete c.revisoesDeAlerta;
-  return crypto.createHash('sha256').update(estavel({ contrato: c, cenario: (spec && spec.cenario) || null })).digest('hex');
+  const contrato = { ...spec?.contrato };
+  delete contrato.aprovacao;
+  delete contrato.revisoesDeAlerta;
+  return crypto.createHash('sha256')
+    .update('pjecalc-plano-v2\n')
+    .update(estavel({ ...spec, contrato, cenario: spec?.cenario || null }))
+    .digest('hex');
 }
 export function verificarAprovacao(spec) {
   const c = spec && spec.contrato;
@@ -32,7 +35,7 @@ export function verificarAprovacao(spec) {
   const a = c.aprovacao;
   if (!a) return { valida: false, motivo: 'plano de interpretação ainda não aprovado pelo usuário (calculo_plano_interpretacao -> aprovação -> calculo_aprovar_plano)', hashAtual };
   if (!a.por || !a.em) return { valida: false, motivo: 'aprovação sem "por" (quem aprovou) ou "em" (quando)', hashAtual };
-  if (a.hashContrato !== hashAtual) return { valida: false, motivo: 'o contrato ou o cenário mudaram depois da aprovação: gere o plano de novo e peça nova aprovação', hashAtual };
+  if (a.hashContrato !== hashAtual) return { valida: false, motivo: 'os dados da especificação mudaram depois da aprovação ou a aprovação é de uma versão anterior. Gere o plano de novo e peça nova aprovação.', hashAtual };
   return { valida: true, motivo: `aprovado por ${a.por} em ${a.em}`, hashAtual };
 }
 
@@ -126,7 +129,7 @@ export function planoInterpretacao(spec, auditoria) {
 
   const hash = hashContrato(s);
   L.push('## 8. Aprovação', '');
-  L.push(falhas.length ? 'Ainda **não** pode ser aprovado: resolva as falhas acima.' : `Para aprovar, responda "aprovo o plano". O agente registra a aprovação (calculo_aprovar_plano) com o código ${hash.slice(0, 12)}; qualquer mudança no contrato depois disso exige nova aprovação.`);
+  L.push(falhas.length ? 'Ainda **não** pode ser aprovado: resolva as falhas acima.' : `Para aprovar, responda "aprovo o plano". O agente registra a aprovação (calculo_aprovar_plano) com o código ${hash.slice(0, 12)}. Mudanças na especificação, inclusive na parametrização, exigem nova aprovação.`);
   return { markdown: L.join('\n'), hashContrato: hash, falhas: falhas.length, alertas: alertas.length, prontoParaAprovar: falhas.length === 0, aprovacaoAtual: verificarAprovacao(s) };
 }
 

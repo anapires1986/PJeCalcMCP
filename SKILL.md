@@ -117,17 +117,7 @@ Módulos por assunto (`references/modulos/`):
 | `EXECUCAO.md` | execução: pagamentos, honorários, multas, pensão e custas da execução, precatório/RPV, cálculo externo |
 | `REFERENCIA.md` | conta de referência (perito, parte, outro cenário) |
 
-## Etapa 5 — Plano de interpretação e aprovação
-
-`references/modulos/PLANO.md`:
-1. Gere o plano com `calculo_plano_interpretacao` e **mostre-o inteiro ao usuário**.
-2. Resolva as falhas antes.
-3. Quando o usuário aprovar, registre com `calculo_aprovar_plano`.
-
-Qualquer mudança no contrato depois disso exige nova aprovação. Sem aprovação válida, `calculo_criar`
-não gera nada.
-
-## Etapa 6 — Parametrização
+## Etapa 5 — Parametrização
 
 1. `calculo_modelo_json` (`exemplo=auditavel` mostra um caso completo) e os catálogos.
 2. Especificação com `origem` em cada verba, histórico, falta, férias e abatimento; correção e juros
@@ -139,13 +129,22 @@ não gera nada.
      `custas.fixas`, `custas.autos`, `custas.armazenamentos`.
    - Honorários sobre verbas escolhidas: `honorarios[].verbas`. Piso e vale-transporte: ids de
      `catalogo_pisos_vt`.
-3. `calculo_validar` até `valido: true` e `prontoParaCalcular: true`. As regras de validação do
-   próprio PJe-Calc são aplicadas antes de importar (`pendenciasPrevistas`). `bloqueiosParaCalcular`
-   diz o que falta. Leia:
+3. Use `calculo_validar` para resolver os erros técnicos e de auditoria antes de apresentar o plano.
+   As regras de validação do próprio PJe-Calc são aplicadas antes de importar (`pendenciasPrevistas`).
+   `bloqueiosParaCalcular` indica as pendências. Leia:
    - os `avisos`;
    - as `premissasPadrao`;
    - a `auditoria`. Cada `alerta` recebe revisão em `contrato.revisoesDeAlerta` (conclusão,
      fundamento, responsável, impacto).
+
+## Etapa 6 — Plano de interpretação e aprovação
+
+1. Gere o plano da especificação completa com `calculo_plano_interpretacao` e **mostre-o inteiro ao usuário**.
+2. Quando o usuário aprovar, registre com `calculo_aprovar_plano` na mesma especificação.
+3. Confirme `valido: true` e `prontoParaCalcular: true` com `calculo_validar`.
+
+Mudanças na especificação, inclusive na parametrização, exigem nova aprovação. O registro da aprovação
+e as revisões de alertas ficam fora do hash. Veja `references/modulos/PLANO.md`.
 
 ## Etapa 7 — Cálculo no PJe-Calc
 

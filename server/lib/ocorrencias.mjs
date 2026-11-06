@@ -20,6 +20,7 @@ const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').rep
 const ymd = (ms) => { if (ms == null) return null; const d = new Date(Number(ms) - 3 * 3600e3); return d.toISOString().slice(0, 10); };
 
 export const CAMPOS_EDITAVEIS = ['pago', 'quantidade', 'devido', 'divisor', 'multiplicador', 'dobra', 'ativo'];
+const decimalDaEdicao = (campo, valor) => dec(valor, campo === 'multiplicador' ? 8 : 25);
 
 function todasAsVerbas(raiz) {
   const vistos = new Set(); const out = [];
@@ -79,16 +80,15 @@ export function aplicarEdicoes(raiz, edicoes) {
       const o = achadas[0];
       const antes = {};
       for (const k of CAMPOS_EDITAVEIS) if (e[k] !== undefined) antes[k] = c(o, k);
-      if (e.pago !== undefined) definir(o, 'pago', dec(e.pago, 25));
-      if (e.quantidade !== undefined) definir(o, 'quantidade', dec(e.quantidade, 25));
-      if (e.divisor !== undefined) definir(o, 'divisor', dec(e.divisor, 25));
-      if (e.multiplicador !== undefined) definir(o, 'multiplicador', dec(e.multiplicador, 8));
+      for (const k of ['pago', 'quantidade', 'divisor', 'multiplicador']) {
+        if (e[k] !== undefined) definir(o, k, decimalDaEdicao(k, e[k]));
+      }
       if (e.dobra !== undefined) definir(o, 'dobra', e.dobra ? 'true' : 'false');
       if (e.ativo !== undefined) definir(o, 'ativo', e.ativo ? 'true' : 'false');
       if (e.devido !== undefined) {
         // valor devido digitado: a ocorrência passa a "informado" (a regeração preserva o devido só nesse caso)
         definir(o, 'valor', 'INFORMADO');
-        definir(o, 'devido', dec(e.devido, 25));
+        definir(o, 'devido', decimalDaEdicao('devido', e.devido));
       }
       aplicadas.push({ verba: c(v, 'nome'), ocorrencia: rotulo(o), antes, depois: Object.fromEntries(CAMPOS_EDITAVEIS.filter((k) => e[k] !== undefined).map((k) => [k, e[k]])) });
     }
@@ -108,7 +108,9 @@ export function conferirEdicoes(raiz, edicoes) {
       const o = achadas[0];
       const difs = [];
       const numIgual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.0000001;
-      for (const k of ['pago', 'quantidade', 'devido', 'divisor', 'multiplicador']) if (e[k] !== undefined && !numIgual(c(o, k), e[k])) difs.push(`${k} ${c(o, k)} (esperado ${e[k]})`);
+      for (const k of ['pago', 'quantidade', 'devido', 'divisor', 'multiplicador']) {
+        if (e[k] !== undefined && !numIgual(c(o, k), decimalDaEdicao(k, e[k]))) difs.push(`${k} ${c(o, k)} (esperado ${e[k]})`);
+      }
       for (const k of ['dobra', 'ativo']) if (e[k] !== undefined && (c(o, k) === 'true') !== Boolean(e[k])) difs.push(`${k} ${c(o, k)} (esperado ${e[k]})`);
       if (difs.length) divergencias.push(`${ed.verba} ${rotulo(o)}: ${difs.join(', ')}`); else ok++;
     }

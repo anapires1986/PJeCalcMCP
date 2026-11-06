@@ -241,7 +241,7 @@ server.registerTool('titulo_compor', {
 
 server.registerTool('calculo_plano_interpretacao', {
   title: 'Plano de interpretação (para o usuário aprovar)',
-  description: 'Gera o plano de interpretação legível (markdown) a partir do contrato e da especificação: processo, fase e processos ligados; matriz do título; cada parcela com comando, folha, trecho, período, reflexos e como será calculada no PJe-Calc; critérios gerais; eventos, pagamentos e destinos do crédito; premissas; conflitos, alertas, pendências e perguntas. MOSTRE o plano ao usuário e peça a aprovação ANTES de calcular. Devolve o hash do contrato a ser aprovado.',
+  description: 'Gera o plano de interpretação legível (markdown) a partir do contrato e da especificação: processo, fase e processos ligados; matriz do título; cada parcela com comando, folha, trecho, período, reflexos e como será calculada no PJe-Calc; critérios gerais; eventos, pagamentos e destinos do crédito; premissas; conflitos, alertas, pendências e perguntas. MOSTRE o plano ao usuário e peça a aprovação ANTES de calcular. Devolve o hash da especificação completa a ser aprovada.',
   inputSchema: z.object(ESPEC),
 }, (args) => handler(() => {
   const spec = lerEspecificacao(args);
@@ -250,7 +250,7 @@ server.registerTool('calculo_plano_interpretacao', {
 
 server.registerTool('calculo_aprovar_plano', {
   title: 'Registrar a aprovação do plano pelo usuário',
-  description: 'Use SOMENTE depois que o usuário aprovou o plano de interpretação na conversa. Devolve o objeto contrato.aprovacao (quem, quando, observações, hash do contrato aprovado) para gravar na especificação; com arquivo_json e gravar=true, grava no próprio arquivo. Recusa se a auditoria tiver falhas. Qualquer mudança posterior no contrato ou no cenário invalida a aprovação.',
+  description: 'Use SOMENTE depois que o usuário aprovou o plano de interpretação na conversa. Devolve o objeto contrato.aprovacao com quem aprovou, quando, observações e o hash da especificação aprovada. Com arquivo_json e gravar=true, grava no próprio arquivo. Recusa se a auditoria tiver falhas. Mudanças na especificação, inclusive na parametrização, exigem nova aprovação. Revisões de alertas podem ser registradas depois.',
   inputSchema: z.object({
     ...ESPEC,
     por: z.string().describe('Quem aprovou (nome do usuário).'),
@@ -270,7 +270,7 @@ server.registerTool('calculo_aprovar_plano', {
     fs.writeFileSync(arq, `${JSON.stringify(spec, null, 2)}\n`);
     return { gravado: arq, aprovacao };
   }
-  return { aprovacao, instrucao: 'Grave este objeto em contrato.aprovacao, sem mudar mais nada no contrato.' };
+  return { aprovacao, instrucao: 'Grave este objeto em contrato.aprovacao na mesma especificação exibida no plano.' };
 }));
 
 server.registerTool('calculo_documentos_necessarios', {
@@ -1084,14 +1084,14 @@ server.registerTool('db_restaurar', {
 // ---------------------------------------------------------------------------
 
 const CONFIG_FILES = {
-  'server.xml': env.serverXmlPath(),
-  'context.xml': env.contextXmlPath(),
-  'catalina.properties': path.join(env.tomcatDir(), 'conf', 'catalina.properties'),
-  'iniciarPjeCalc.bat': env.batNormal(),
-  'iniciarPjeCalcDebug.bat': env.batDebug(),
-  'url_tribunal.properties': path.join(env.webappDir(), 'WEB-INF', 'classes', 'url_tribunal.properties'),
-  'persistence.xml': path.join(env.webappDir(), 'WEB-INF', 'classes', 'META-INF', 'persistence.xml'),
-  'web.xml': path.join(env.webappDir(), 'WEB-INF', 'web.xml'),
+  'server.xml': env.serverXmlPath,
+  'context.xml': env.contextXmlPath,
+  'catalina.properties': () => path.join(env.tomcatDir(), 'conf', 'catalina.properties'),
+  'iniciarPjeCalc.bat': env.batNormal,
+  'iniciarPjeCalcDebug.bat': env.batDebug,
+  'url_tribunal.properties': () => path.join(env.webappDir(), 'WEB-INF', 'classes', 'url_tribunal.properties'),
+  'persistence.xml': () => path.join(env.webappDir(), 'WEB-INF', 'classes', 'META-INF', 'persistence.xml'),
+  'web.xml': () => path.join(env.webappDir(), 'WEB-INF', 'web.xml'),
 };
 
 server.registerTool('config_ler', {
@@ -1101,7 +1101,7 @@ server.registerTool('config_ler', {
     arquivo: z.enum(Object.keys(CONFIG_FILES)).describe('Nome do arquivo.'),
   }),
 }, (args) => handler(() => {
-  const p = CONFIG_FILES[args.arquivo];
+  const p = CONFIG_FILES[args.arquivo]();
   return { arquivo: p, conteudo: fs.readFileSync(p, 'latin1') };
 }));
 
@@ -1166,7 +1166,7 @@ const RESOURCES = [
   { uri: 'pjecalc://docs/contrato-de-dados', file: 'CONTRATO-DE-DADOS.md', title: 'Contrato de dados auditável', desc: 'Documentos, decisões, parcelas, afastamentos, remunerações, pagamentos e premissas; vínculos "origem"; o que a auditoria detecta; cenários.' },
   { uri: 'pjecalc://docs/modulos/processo', file: 'modulos/PROCESSO.md', title: 'Módulo: processo completo', desc: 'Mapa do processo: fases (pré-processual a execução), processos ligados e seus efeitos, situações especiais (devedores, ente público, recuperação judicial, destinos do crédito).' },
   { uri: 'pjecalc://docs/modulos/leitura', file: 'modulos/LEITURA.md', title: 'Módulo: leitura integral', desc: 'Protocolo de leitura de documentos, textos e imagens: inventário, página por página, extração por tipo, dupla leitura, fechamentos, confronto entre documentos, pedidos × decisão.' },
-  { uri: 'pjecalc://docs/modulos/plano', file: 'modulos/PLANO.md', title: 'Módulo: plano de interpretação e aprovação', desc: 'Estrutura do plano mostrado ao usuário, aprovação com hash do contrato e revisão plano × resultado.' },
+  { uri: 'pjecalc://docs/modulos/plano', file: 'modulos/PLANO.md', title: 'Módulo: plano de interpretação e aprovação', desc: 'Estrutura do plano mostrado ao usuário, aprovação vinculada à especificação e revisão plano × resultado.' },
   { uri: 'pjecalc://docs/precedentes', file: 'PRECEDENTES.md', title: 'Catálogo de precedentes', desc: 'Precedentes com efeito no cálculo (ADC 58, Lei 14.905/2024, Fazenda Pública, OJ 394, súmulas do TST), com vigência, modulação e parametrização no PJe-Calc.' },
   { uri: 'pjecalc://docs/modulos/documentos', file: 'modulos/DOCUMENTOS.md', title: 'Módulo: documentos necessários', desc: 'Rodadas de coleta, matriz parcela -> documentos, cobertura mês a mês, contrato.coleta e a trava antes de calcular.' },
   { uri: 'pjecalc://docs/modulos/titulo-executivo', file: 'modulos/TITULO-EXECUTIVO.md', title: 'Módulo: título executivo', desc: 'Cadeia de decisões, alcance, reflexos, contradições.' },
@@ -1213,8 +1213,8 @@ Siga as etapas da skill (SKILL.md), sem misturá-las:
 2. LEITURA INTEGRAL: documento_inventario (páginas com e sem texto), todas as páginas de todos os documentos, imagens vistas como imagem (documento_imagens), extração com folha e trecho (documento_texto; holerites, cartões, extrato do FGTS e TRCT pelos conversores, que conferem os fechamentos), dupla leitura, confronto entre documentos, pedidos × decisão, registrados em contrato.leitura, contrato.confrontos e contrato.pedidos (pjecalc://docs/modulos/leitura).
 3. TÍTULO: todas as decisões (vara, TRT, TST, STF, liquidação, execução) por capítulo, com efeito substitutivo, trânsito por capítulo, recursos pendentes, conflitos e precedentes vinculantes (pjecalc://docs/modulos/titulo-executivo, pjecalc://docs/precedentes; titulo_compor).
 4. CONTRATO DE DADOS: decisões, parcelas, eventos, remunerações, pagamentos e premissas com fundamento (pjecalc://docs/contrato-de-dados). Desconhecido vira pergunta ou cenário, nunca zero ou padrão.
-5. PLANO E APROVAÇÃO: calculo_plano_interpretacao, mostre o plano INTEIRO ao usuário, resolva as falhas e, quando ele aprovar, calculo_aprovar_plano (pjecalc://docs/modulos/plano).
-6. PARAMETRIZAÇÃO: calculo_modelo_json (exemplo=auditavel) e catálogos; especificação com "origem" em tudo; calculo_validar até valido=true e prontoParaCalcular=true; cada alerta revisado em contrato.revisoesDeAlerta.
+5. PARAMETRIZAÇÃO: calculo_modelo_json (exemplo=auditavel) e catálogos. Monte a especificação completa com "origem" em tudo. Use calculo_validar para corrigir erros técnicos e de auditoria.
+6. PLANO E APROVAÇÃO: calculo_plano_interpretacao, mostre o plano INTEIRO ao usuário e, quando ele aprovar, registre calculo_aprovar_plano na mesma especificação (pjecalc://docs/modulos/plano). Cada alerta deve ser revisado em contrato.revisoesDeAlerta. Confirme valido=true e prontoParaCalcular=true antes de calcular. Alterações na especificação exigem nova aprovação.
 7. CÁLCULO: calculo_criar com liquidar_em = contrato.dataLiquidacao (tabelas do TRT do processo); valores mês a mês em verbas[].ocorrencias. Na execução: calculo_atualizar sobre o cálculo homologado liquidado, ou calculo_externo_criar para a conta feita fora do PJe-Calc (pjecalc://docs/modulos/execucao). Vários reclamantes ou devedores: calculo_criar_lote.
 8. CONFERÊNCIA E ENTREGA: estado, dimensões, provisório, verificações e plano × resultado; volte aos documentos (quantidades e nominais primeiro); conta de referência com calculo_comparar_referencia (outro cálculo, relatório em PDF ou a conta transcrita). Entregue número do cálculo, -PRONTO.PJC, -LIQUIDADO.PJC, o relatório completo -RELATORIO.pdf, .registro.json, plano aprovado, premissas e cada dimensão separada; "revisadoParaEntrega" é sempre false.
 Não invente dados: quando algo essencial faltar, pergunte ao usuário.

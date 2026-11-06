@@ -581,7 +581,7 @@ const VALOR = String.raw`(\(?-?[\d.]+,\d+\)?)`;
  * e débitos do reclamado e uma conferência (soma das rubricas = total do quadro = bruto).
  */
 export function extrairResumo(texto) {
-  const t = texto;
+  const t = texto.replace(/\r\n?/g, '\n');
   const pick = (re) => { const m = t.match(re); return m ? m[1] : null; };
   const linhas = [];
   let totaisQuadro = null;

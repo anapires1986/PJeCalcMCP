@@ -358,10 +358,12 @@ export class OperadorPjeCalc {
     const br = dataTela;
     let p = await this.s.menu('Liquidar Atualização');
     if (!/dataDeLiquidacaoInputDate/.test(p.html)) throw new Error('A tela "Liquidar Atualização" não abriu (o cálculo está liquidado?).');
-    const valores = { 'formulario:dataDeLiquidacaoInputDate': br(data) };
+    const valores = {
+      'formulario:dataDeLiquidacaoInputDate': br(data),
+      'formulario:cobrarEncargosIrpf': cobrarEncargosIrpf ? 'on' : null,
+    };
     if (identificacao) valores['formulario:identificacaoCalculo'] = identificacao;
     if (comentarios) valores['formulario:comentarios'] = comentarios;
-    if (cobrarEncargosIrpf) valores['formulario:cobrarEncargosIrpf'] = 'on';
     if (precatorio) {
       // a caixa "Atualização de Precatório/RPV" mostra os campos por AJAX: sem esse evento eles não são lidos
       valores['formulario:atualizarRegraPrecatorio'] = 'on';

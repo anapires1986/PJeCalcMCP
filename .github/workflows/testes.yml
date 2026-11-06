@@ -21,4 +21,4 @@ jobs:
         with:
           node-version: 22
       - name: Testes offline (sem PJe-Calc)
-        run: node scripts/test-mcp.mjs
+        run: npm --prefix server test

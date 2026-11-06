@@ -311,21 +311,29 @@ export function clonar(no) {
 // datas: o PJe-Calc roda com -Duser.timezone=GMT-3 e grava java.util.Date em ms
 const FUSO_MS = 3 * 3600 * 1000;
 
-/** "2015-06-10" | "10/06/2015" | Date -> texto em ms (meia-noite de Brasília, GMT-3). */
+const erroData = (d) => new Error(`Data inválida: "${d}" (use AAAA-MM-DD ou DD/MM/AAAA).`);
+
+function msDosComponentes(ano, mes, dia, entrada) {
+  const data = new Date(0);
+  // setUTCFullYear mantém o ano literal de 0 a 99, que Date.UTC deslocaria para 1900 a 1999.
+  data.setUTCFullYear(ano, mes - 1, dia);
+  if (data.getUTCFullYear() !== ano || data.getUTCMonth() !== mes - 1 || data.getUTCDate() !== dia) {
+    throw erroData(entrada);
+  }
+  return String(data.getTime() + FUSO_MS);
+}
+
+/** Data ou competência -> texto em ms (meia-noite de Brasília, GMT-3). */
 export function dataMs(d) {
   if (d === null || d === undefined || d === '') return null;
-  if (d instanceof Date) return String(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) + FUSO_MS);
+  if (d instanceof Date) return msDosComponentes(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), d);
   const s = String(d).trim();
-  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (m) return String(Date.UTC(+m[1], +m[2] - 1, +m[3]) + FUSO_MS);
-  m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
-  if (m) return String(Date.UTC(+m[3], +m[2] - 1, +m[1]) + FUSO_MS);
-  m = /^(\d{4})-(\d{2})$/.exec(s);
-  if (m) return String(Date.UTC(+m[1], +m[2] - 1, 1) + FUSO_MS);
-  m = /^(\d{2})\/(\d{4})$/.exec(s);
-  if (m) return String(Date.UTC(+m[2], +m[1] - 1, 1) + FUSO_MS);
+  let m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(s);
+  if (m) return msDosComponentes(+m[1], +m[2], Number(m[3] ?? 1), d);
+  m = /^(?:(\d{2})\/)?(\d{2})\/(\d{4})$/.exec(s);
+  if (m) return msDosComponentes(+m[3], +m[2], Number(m[1] ?? 1), d);
   if (/^\d{9,}$/.test(s)) return s;
-  throw new Error(`Data inválida: "${d}" (use AAAA-MM-DD ou DD/MM/AAAA).`);
+  throw erroData(d);
 }
 
 /** ms (texto) -> "AAAA-MM-DD" */

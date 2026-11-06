@@ -9,6 +9,7 @@ import os from 'node:os';
 import readline from 'node:readline';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { registrarCodex, removerCodex, temRegistroCodex } from './codex-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(__dirname, '..');
@@ -70,7 +71,14 @@ function jsonServidores(nome, arquivo, chave, comTipo = false) {
     registrar: () => {
       const j = lerJson(arquivo);
       const b = backup(arquivo);
-      j[chave] = { ...(j[chave] || {}), pjecalc: comTipo ? { type: 'stdio', ...entrada() } : entrada() };
+      const servidores = j[chave] || {};
+      const opcoes = servidores.pjecalc || {};
+      const registro = { ...opcoes, ...entrada() };
+      delete registro.url;
+      delete registro.headers;
+      if (comTipo) registro.type = 'stdio';
+      else if (registro.type !== 'stdio') delete registro.type;
+      j[chave] = { ...servidores, pjecalc: registro };
       gravarJson(arquivo, j);
       return b;
     },
@@ -106,23 +114,21 @@ function agentes() {
   if (fs.existsSync(path.join(casa, '.codeium', 'windsurf'))) lista.push(jsonServidores('Windsurf', path.join(casa, '.codeium', 'windsurf', 'mcp_config.json'), 'mcpServers'));
   if (fs.existsSync(path.join(casa, '.codex'))) {
     const arquivo = path.join(casa, '.codex', 'config.toml');
-    const tirar = (t) => t.replace(/\n?\[mcp_servers\.pjecalc\][\s\S]*?(?=\n\[|$)/, '');
-    const q = (s) => `'${s}'`; // string literal TOML (sem escapes: barras do Windows ficam intactas)
+    const ler = () => fs.existsSync(arquivo) ? fs.readFileSync(arquivo, 'utf-8') : '';
     lista.push({
       nome: 'Codex', arquivo,
-      registrado: () => fs.existsSync(arquivo) && /\[mcp_servers\.pjecalc\]/.test(fs.readFileSync(arquivo, 'utf-8')),
+      registrado: () => temRegistroCodex(ler()),
       registrar: () => {
-        const t = fs.existsSync(arquivo) ? fs.readFileSync(arquivo, 'utf-8') : '';
+        const t = registrarCodex(ler(), entrada());
         const b = backup(arquivo);
-        fs.writeFileSync(arquivo, `${tirar(t).replace(/\s*$/, '')}\n\n[mcp_servers.pjecalc]\ncommand = ${q(NODE)}\nargs = [${q(SERVIDOR)}]\n`);
+        fs.writeFileSync(arquivo, t);
         return b;
       },
       remover: () => {
-        if (!fs.existsSync(arquivo)) return null;
-        const t = fs.readFileSync(arquivo, 'utf-8');
-        if (!/\[mcp_servers\.pjecalc\]/.test(t)) return null;
+        const t = removerCodex(ler());
+        if (t === null) return null;
         const b = backup(arquivo);
-        fs.writeFileSync(arquivo, `${tirar(t).replace(/\s*$/, '')}\n`);
+        fs.writeFileSync(arquivo, t);
         return b;
       },
     });
